@@ -1,0 +1,30 @@
+{
+  "functions": {
+    "app/api/**/*.ts": {
+      "memory": 1024,
+      "maxDuration": 300
+    }
+  },
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_SITE_URL": "${VERCEL_URL}"
+    }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        }
+      ]
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/update-products",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+} 

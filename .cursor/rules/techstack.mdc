@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Tech Stack:
+
+-   Frontend: Next.js (React), Tailwind CSS, Zustand, Shadcn/ui (optional, but preferred)
+-   Backend: Next.js API Routes (TypeScript)
+-   APIs: Anthropic Claude 3.7 Sonnet, Oxylabs Web Scraper, Stripe
+-   Database: Vercel Postgres (Supabase)
+-   Deployment: Vercel
+-   Domain Registrar: Namecheap
+
+- OPEN TO CHANGING THE TECH STACK AS NECESSARY
