@@ -295,11 +295,6 @@ export async function searchProducts(claudeOutput: ClaudeQueryOutput, subscripti
   // @ts-ignore - This is intentionally added to the global scope to allow the progressive timeout to access it
   global._partialSearchResults = [];
   
-  // For debug logging in Vercel
-  console.log('Environment check:');
-  console.log('- OXYLABS_USERNAME:', process.env.OXYLABS_USERNAME ? `Set (${process.env.OXYLABS_USERNAME.substring(0, 3)}...)` : 'Not set');
-  console.log('- OXYLABS_PASSWORD:', process.env.OXYLABS_PASSWORD ? `Set (length: ${process.env.OXYLABS_PASSWORD.length})` : 'Not set');
-  
   // Check if API credentials are available
   if (!process.env.OXYLABS_USERNAME || !process.env.OXYLABS_PASSWORD) {
     console.warn('Using MOCK DATA for demonstration purposes');

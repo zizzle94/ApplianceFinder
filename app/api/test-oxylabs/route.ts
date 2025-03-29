@@ -1,79 +1,72 @@
-import { NextResponse } from 'next/server';
-import axios, { AxiosError } from 'axios';
+import { NextRequest, NextResponse } from 'next/server';
+import axios from 'axios';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  // Get the Oxylabs credentials
-  const oxyUsername = process.env.OXYLABS_USERNAME;
-  const oxyPassword = process.env.OXYLABS_PASSWORD;
-  
-  if (!oxyUsername || !oxyPassword) {
-    return NextResponse.json({
-      success: false,
-      error: 'Oxylabs credentials not configured',
-      details: {
-        OXYLABS_USERNAME_EXISTS: !!oxyUsername,
-        OXYLABS_PASSWORD_EXISTS: !!oxyPassword
+export async function GET(request: NextRequest) {
+  try {
+    // Check if Oxylabs credentials are available
+    if (!process.env.OXYLABS_USERNAME || !process.env.OXYLABS_PASSWORD) {
+      return NextResponse.json({
+        error: 'Oxylabs credentials not found in environment variables',
+        credentialsExist: false
+      }, { status: 400 });
+    }
+    
+    // Test search for a refrigerator
+    const payload = {
+      source: 'universal_ecommerce',
+      domain: 'bestbuy.com',
+      parse: true,
+      render: 'html',
+      geo_location: 'United States',
+      user_agent_type: 'desktop',
+      url: 'https://www.bestbuy.com/site/searchpage.jsp?st=refrigerator'
+    };
+    
+    // Attempt to connect to Oxylabs
+    const response = await axios.post('https://realtime.oxylabs.io/v1/queries', payload, {
+      auth: {
+        username: process.env.OXYLABS_USERNAME,
+        password: process.env.OXYLABS_PASSWORD
+      },
+      headers: {
+        'Content-Type': 'application/json'
       }
     });
-  }
-  
-  try {
-    // Test a simple search using Oxylabs with a valid source
-    const response = await axios.post(
-      'https://realtime.oxylabs.io/v1/queries',
-      {
-        source: 'universal_ecommerce',
-        domain: 'bestbuy.com',
-        query: 'refrigerator',
-        parse: true
-      },
-      {
-        auth: {
-          username: oxyUsername,
-          password: oxyPassword
-        },
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    );
     
-    // Return success with sample data structure
+    // Check the response structure
     return NextResponse.json({
       success: true,
       message: 'Successfully connected to Oxylabs API',
-      responseStatus: response.status,
-      resultsCount: response.data.results?.length || 0,
-      resultsSample: response.data.results?.length > 0 ? {
-        status_code: response.data.results[0].status_code,
-        content_type: typeof response.data.results[0].content,
-        content_structure: Object.keys(response.data.results[0].content || {}),
-        products_count: response.data.results[0].content?.results?.length || 
-                      response.data.results[0].content?.organic?.length || 
-                      response.data.results[0].content?.products?.length || 0,
-        sample_product: response.data.results[0].content?.results?.[0] || 
-                      response.data.results[0].content?.organic?.[0] || 
-                      response.data.results[0].content?.products?.[0] || null
-      } : null
-    });
-  } catch (error: unknown) {
-    console.error('Error testing Oxylabs API:', error);
-    
-    // Check if it's an authentication error
-    const axiosError = error as AxiosError;
-    const statusCode = axiosError.response?.status;
-    const responseData = axiosError.response?.data;
-    
-    return NextResponse.json({
-      success: false,
-      error: 'Failed to connect to Oxylabs API',
-      details: {
-        statusCode,
-        message: axiosError.message,
-        responseData
+      data: {
+        status: response.status,
+        hasResults: !!response.data.results,
+        resultsCount: response.data.results ? response.data.results.length : 0,
+        content_structure: response.data.results?.[0]?.content ? Object.keys(response.data.results[0].content) : []
       }
     });
+  } catch (error) {
+    console.error('Error testing Oxylabs connection:', error);
+    
+    // Return error information
+    const errorResponse = {
+      success: false,
+      message: 'Failed to connect to Oxylabs API'
+    };
+    
+    if (axios.isAxiosError(error)) {
+      // @ts-ignore
+      errorResponse.axiosError = {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        message: error.message
+      };
+    } else if (error instanceof Error) {
+      // @ts-ignore
+      errorResponse.error = error.message;
+    }
+    
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 } 

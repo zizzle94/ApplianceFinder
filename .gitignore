@@ -22,6 +22,7 @@ node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.log
 
 # local env files
 .env
@@ -47,4 +48,15 @@ next-env.d.ts
 *.sublime-workspace
 
 # Duplicate project directory
-/appliance-finder/ 
+/appliance-finder/
+
+# Secrets and credentials
+*credentials.json
+*.key
+/certs
+/.certs
+.env.prod
+
+# Log files
+/logs
+*.log 

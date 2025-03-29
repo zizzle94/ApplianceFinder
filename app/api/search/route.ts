@@ -61,11 +61,6 @@ function sanitizeDataForSerialization(data: any): any {
 // Log environment configuration
 console.log('API Route Environment Check:');
 console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('ANTHROPIC_API_KEY exists:', !!process.env.ANTHROPIC_API_KEY);
-console.log('OXYLABS_USERNAME exists:', !!process.env.OXYLABS_USERNAME);
-console.log('OXYLABS_PASSWORD exists:', !!process.env.OXYLABS_PASSWORD);
-console.log('NEXT_PUBLIC_SUPABASE_URL exists:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
-console.log('NEXT_PUBLIC_SUPABASE_ANON_KEY exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
 export async function POST(request: NextRequest) {
   const errors: any[] = [];

@@ -2,15 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('Simplified search API request received');
-    
-    // Log environment variable status
-    console.log('ANTHROPIC_API_KEY exists:', !!process.env.ANTHROPIC_API_KEY);
-    console.log('OXYLABS_USERNAME exists:', !!process.env.OXYLABS_USERNAME);
-    console.log('OXYLABS_PASSWORD exists:', !!process.env.OXYLABS_PASSWORD);
-    console.log('NEXT_PUBLIC_SUPABASE_URL exists:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
-    console.log('NEXT_PUBLIC_SUPABASE_ANON_KEY exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-    
     // Extract the query from the request body
     let query;
     let requestBody;
