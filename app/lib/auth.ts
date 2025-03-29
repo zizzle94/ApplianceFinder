@@ -28,13 +28,13 @@ export const getCurrentUser = cache(async () => {
 });
 
 // Authorization helper
-export function canAccessUserData(viewerId: string | null, targetUserId: string) {
+export async function canAccessUserData(viewerId: string | null, targetUserId: string) {
   if (!viewerId) return false;
   return viewerId === targetUserId;
 }
 
 // Helper to check if user can access specific query data
-export function canAccessQueryData(viewerId: string | null, queryUserId: string) {
+export async function canAccessQueryData(viewerId: string | null, queryUserId: string) {
   return canAccessUserData(viewerId, queryUserId);
 }
 
