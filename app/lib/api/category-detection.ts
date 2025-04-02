@@ -1,4 +1,5 @@
-import { getCategoryIdByNameAndParent, addProductToCategory } from '../db';
+import { getCategoryIdByNameAndParent, addProductToCategory, getOrCreateCategoryByName } from '../db';
+import { validateCategoryExists } from './category-validation';
 
 // Interface for detected categories
 export interface DetectedCategory {
@@ -9,6 +10,31 @@ export interface DetectedCategory {
 // Type definitions for category data structures
 type CategoryKeywords = Record<string, string[]>;
 type SubcategoryKeywords = Record<string, Record<string, string[]>>;
+
+/**
+ * Normalizes a string into a category slug name
+ * @param text - The raw text to convert to a slug
+ * @returns The normalized slug for use as a category name
+ */
+function normalizeToSlug(text: string): string {
+  return text.toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')  // Remove special chars
+    .replace(/[\s_-]+/g, '_')  // Replace spaces and hyphens with underscores
+    .replace(/^-+|-+$/g, '');  // Trim hyphens from start and end
+}
+
+/**
+ * Converts a slug to a display name
+ * @param slug - The slug to convert
+ * @returns The display name (capitalized words)
+ */
+function slugToDisplayName(slug: string): string {
+  return slug
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
 
 /**
  * Detects product categories based on product name, URL, and Claude's analysis
@@ -142,6 +168,30 @@ export async function detectProductCategories(
         }
       }
     }
+    
+    // If still not found, validate and then create a new main category from Claude's type
+    if (!mainCategory && claudeApplianceType) {
+      console.log(`Validating potential new main category from Claude's type: ${claudeApplianceType}`);
+      
+      // Validate that this category actually exists by searching for products
+      const isValidCategory = await validateCategoryExists(claudeApplianceType);
+      
+      if (isValidCategory) {
+        console.log(`Validated new main category: ${claudeApplianceType}`);
+        const newMainCategory = normalizeToSlug(claudeApplianceType);
+        const displayName = claudeApplianceType.trim(); // Use Claude's original classification
+        
+        // Create the new category
+        mainCategoryId = await getOrCreateCategoryByName(newMainCategory, displayName);
+        
+        if (mainCategoryId) {
+          console.log(`Created new main category: ${displayName} (${newMainCategory})`);
+          mainCategory = newMainCategory;
+        }
+      } else {
+        console.log(`Invalid category "${claudeApplianceType}" - not creating in database`);
+      }
+    }
   }
   
   // If Claude's type didn't match, try product name and URL
@@ -154,18 +204,18 @@ export async function detectProductCategories(
     }
   }
   
-  // Get the main category ID if we found a match
-  if (mainCategory) {
+  // Get the main category ID if we found a match but don't have the ID yet
+  if (mainCategory && !mainCategoryId) {
     console.log(`Detected main category: ${mainCategory}`);
     mainCategoryId = await getCategoryIdByNameAndParent(mainCategory, null);
   }
   
-  if (mainCategory && mainCategoryId && mainCategory in subCategories) {
+  if (mainCategory && mainCategoryId) {
     // Look for matching subcategories if we found a main category
-    const subCategoryMatches = subCategories[mainCategory];
+    let subCategoryMatches = subCategories[mainCategory] || {};
     let foundSubcategory = false;
     
-    if (subCategoryMatches) {
+    if (Object.keys(subCategoryMatches).length > 0) {
       for (const [subCategory, keywords] of Object.entries(subCategoryMatches)) {
         if (keywords.some(keyword => 
           name.includes(keyword) || 
@@ -183,6 +233,52 @@ export async function detectProductCategories(
             foundSubcategory = true;
             break; // Stop after finding first matching subcategory
           }
+        }
+      }
+    }
+    
+    // If Claude specified a type that looks like a subcategory and no subcategory was found
+    if (!foundSubcategory && claudeApplianceType && 
+        claudeApplianceType.toLowerCase() !== mainCategory.replace('_', ' ')) {
+      // Check if Claude's type might be describing a subcategory
+      const mainCatTerms = mainCategory.split('_').join(' ');
+      const claudeTypeWithoutMainCat = claudeApplianceType
+        .toLowerCase()
+        .replace(mainCatTerms, '')
+        .trim();
+      
+      // If there's additional description beyond the main category
+      if (claudeTypeWithoutMainCat && claudeTypeWithoutMainCat !== mainCatTerms) {
+        // Validate this potential subcategory
+        const potentialSubcategory = `${mainCatTerms} ${claudeTypeWithoutMainCat}`;
+        const isValidSubcategory = await validateCategoryExists(potentialSubcategory);
+        
+        if (isValidSubcategory) {
+          const newSubCategorySlug = normalizeToSlug(claudeTypeWithoutMainCat);
+          
+          // Create display name with proper capitalization
+          const displayName = claudeTypeWithoutMainCat
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+          
+          // Create the new subcategory
+          const newSubCategoryId = await getOrCreateCategoryByName(
+            newSubCategorySlug,
+            displayName,
+            mainCategoryId
+          );
+          
+          if (newSubCategoryId) {
+            console.log(`Created new subcategory: ${displayName} (${newSubCategorySlug}) under ${mainCategory}`);
+            detectedCategories.push({
+              categoryId: newSubCategoryId,
+              isPrimary: true
+            });
+            foundSubcategory = true;
+          }
+        } else {
+          console.log(`Invalid subcategory "${potentialSubcategory}" - not creating in database`);
         }
       }
     }

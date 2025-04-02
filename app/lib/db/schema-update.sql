@@ -24,24 +24,30 @@ CREATE TABLE IF NOT EXISTS homespy_lookups (
 -- Add RLS policies for saved_appliances table
 ALTER TABLE saved_appliances ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own saved appliances" ON saved_appliances;
 CREATE POLICY "Users can view their own saved appliances" 
   ON saved_appliances FOR SELECT USING (auth.uid()::text = user_id::text);
 
+DROP POLICY IF EXISTS "Users can insert their own saved appliances" ON saved_appliances;
 CREATE POLICY "Users can insert their own saved appliances" 
   ON saved_appliances FOR INSERT WITH CHECK (auth.uid()::text = user_id::text);
 
+DROP POLICY IF EXISTS "Users can update their own saved appliances" ON saved_appliances;
 CREATE POLICY "Users can update their own saved appliances" 
   ON saved_appliances FOR UPDATE USING (auth.uid()::text = user_id::text);
 
+DROP POLICY IF EXISTS "Users can delete their own saved appliances" ON saved_appliances;
 CREATE POLICY "Users can delete their own saved appliances" 
   ON saved_appliances FOR DELETE USING (auth.uid()::text = user_id::text);
 
 -- Add RLS policies for homespy_lookups table
 ALTER TABLE homespy_lookups ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own homespy lookups" ON homespy_lookups;
 CREATE POLICY "Users can view their own homespy lookups" 
   ON homespy_lookups FOR SELECT USING (auth.uid()::text = user_id::text);
 
+DROP POLICY IF EXISTS "Users can insert their own homespy lookups" ON homespy_lookups;
 CREATE POLICY "Users can insert their own homespy lookups" 
   ON homespy_lookups FOR INSERT WITH CHECK (auth.uid()::text = user_id::text);
 
@@ -89,6 +95,7 @@ ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Anyone can read products" ON products;
 CREATE POLICY "Anyone can read products" ON products FOR SELECT USING (true);
 
+-- Only create the policy if it doesn't exist
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -156,7 +163,7 @@ CREATE INDEX IF NOT EXISTS idx_products_url ON products(url);
 CREATE INDEX IF NOT EXISTS idx_products_view_count ON products(view_count);
 CREATE INDEX IF NOT EXISTS idx_products_next_update_at ON products(next_update_at);
 
--- Create function for atomically incrementing view_count
+-- Create function for atomically incrementing view_count (use OR REPLACE to update if exists)
 CREATE OR REPLACE FUNCTION increment_product_view(product_id UUID)
 RETURNS VOID AS $$
 BEGIN
@@ -166,7 +173,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create function for atomically incrementing recommendation_count
+-- Create function for atomically incrementing recommendation_count (use OR REPLACE to update if exists)
 CREATE OR REPLACE FUNCTION increment_product_recommendation(product_id UUID)
 RETURNS VOID AS $$
 BEGIN

@@ -63,6 +63,9 @@ CREATE TABLE IF NOT EXISTS products (
     url TEXT UNIQUE NOT NULL,
     image_url TEXT,
     metadata JSONB,
+    make TEXT,
+    model_number TEXT,
+    features JSONB,
     primary_category_id UUID REFERENCES product_categories(id),
     view_count INTEGER DEFAULT 0,
     recommendation_count INTEGER DEFAULT 0,
@@ -149,6 +152,11 @@ INSERT INTO product_categories (name, display_name, parent_id, level) VALUES
 ('electric', 'Electric', (SELECT id FROM parent), 2)
 ON CONFLICT (name, parent_id) DO NOTHING;
 
+-- Add make and model_number columns if they don't exist
+ALTER TABLE products ADD COLUMN IF NOT EXISTS make TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS model_number TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS features JSONB;
+
 -- Create indices for better performance
 CREATE INDEX IF NOT EXISTS idx_product_categories_parent_id ON product_categories(parent_id);
 CREATE INDEX IF NOT EXISTS idx_products_primary_category_id ON products(primary_category_id);
@@ -158,6 +166,8 @@ CREATE INDEX IF NOT EXISTS idx_product_category_junction_is_primary ON product_c
 CREATE INDEX IF NOT EXISTS idx_products_url ON products(url);
 CREATE INDEX IF NOT EXISTS idx_products_view_count ON products(view_count);
 CREATE INDEX IF NOT EXISTS idx_products_next_update_at ON products(next_update_at);
+CREATE INDEX IF NOT EXISTS idx_products_make ON products(make);
+CREATE INDEX IF NOT EXISTS idx_products_model_number ON products(model_number);
 
 -- Create function for atomically incrementing view_count
 CREATE OR REPLACE FUNCTION increment_product_view(product_id UUID)
@@ -178,6 +188,93 @@ BEGIN
   WHERE id = product_id;
 END;
 $$ LANGUAGE plpgsql;
+`;
+
+// Add a new SQL constant after the existing SCHEMA_UPDATE_SQL
+const CATEGORY_UPDATE_SQL = `
+-- Add new main categories that are missing
+INSERT INTO product_categories (name, display_name, level, parent_id) VALUES
+('wall_ovens', 'Wall Ovens', 1, NULL),
+('ranges', 'Ranges', 1, NULL),
+('laundry_centers', 'Laundry Centers', 1, NULL),
+('commercial_laundry', 'Commercial Laundry', 1, NULL),
+('cooktops', 'Cooktops', 1, NULL),
+('hoods', 'Hoods', 1, NULL)
+ON CONFLICT (name, parent_id) DO NOTHING;
+
+-- Add built_in subcategory to refrigerators
+WITH parent AS (SELECT id FROM product_categories WHERE name = 'refrigerators' AND parent_id IS NULL LIMIT 1)
+INSERT INTO product_categories (name, display_name, parent_id, level) VALUES
+('built_in', 'Built-In', (SELECT id FROM parent), 2)
+ON CONFLICT (name, parent_id) DO NOTHING;
+
+-- Add portable subcategory to washing_machines
+WITH parent AS (SELECT id FROM product_categories WHERE name = 'washing_machines' AND parent_id IS NULL LIMIT 1)
+INSERT INTO product_categories (name, display_name, parent_id, level) VALUES
+('portable', 'Portable', (SELECT id FROM parent), 2)
+ON CONFLICT (name, parent_id) DO NOTHING;
+
+-- Add subcategories for wall_ovens
+WITH parent AS (SELECT id FROM product_categories WHERE name = 'wall_ovens' AND parent_id IS NULL LIMIT 1)
+INSERT INTO product_categories (name, display_name, parent_id, level) VALUES
+('electric', 'Electric', (SELECT id FROM parent), 2),
+('gas', 'Gas', (SELECT id FROM parent), 2),
+('microwave_combo', 'Microwave Combo', (SELECT id FROM parent), 2)
+ON CONFLICT (name, parent_id) DO NOTHING;
+
+-- Add subcategories for ranges
+WITH parent AS (SELECT id FROM product_categories WHERE name = 'ranges' AND parent_id IS NULL LIMIT 1)
+INSERT INTO product_categories (name, display_name, parent_id, level) VALUES
+('electric', 'Electric', (SELECT id FROM parent), 2),
+('gas', 'Gas', (SELECT id FROM parent), 2),
+('dual_fuel', 'Dual Fuel', (SELECT id FROM parent), 2)
+ON CONFLICT (name, parent_id) DO NOTHING;
+
+-- Add subcategories for laundry_centers
+WITH parent AS (SELECT id FROM product_categories WHERE name = 'laundry_centers' AND parent_id IS NULL LIMIT 1)
+INSERT INTO product_categories (name, display_name, parent_id, level) VALUES
+('electric', 'Electric', (SELECT id FROM parent), 2),
+('gas', 'Gas', (SELECT id FROM parent), 2),
+('washer_dryer_combos', 'Washer Dryer Combos', (SELECT id FROM parent), 2)
+ON CONFLICT (name, parent_id) DO NOTHING;
+
+-- Add subcategories for commercial_laundry
+WITH parent AS (SELECT id FROM product_categories WHERE name = 'commercial_laundry' AND parent_id IS NULL LIMIT 1)
+INSERT INTO product_categories (name, display_name, parent_id, level) VALUES
+('commercial_washers', 'Commercial Washers', (SELECT id FROM parent), 2),
+('commercial_dryers', 'Commercial Dryers', (SELECT id FROM parent), 2),
+('commercial_laundry_centers', 'Commercial Laundry Centers', (SELECT id FROM parent), 2)
+ON CONFLICT (name, parent_id) DO NOTHING;
+
+-- Add subcategories for microwaves
+WITH parent AS (SELECT id FROM product_categories WHERE name = 'microwaves' AND parent_id IS NULL LIMIT 1)
+INSERT INTO product_categories (name, display_name, parent_id, level) VALUES
+('otr', 'Over-the-Range', (SELECT id FROM parent), 2),
+('built_in', 'Built-In', (SELECT id FROM parent), 2),
+('countertop', 'Countertop', (SELECT id FROM parent), 2)
+ON CONFLICT (name, parent_id) DO NOTHING;
+
+-- Add subcategories for cooktops
+WITH parent AS (SELECT id FROM product_categories WHERE name = 'cooktops' AND parent_id IS NULL LIMIT 1)
+INSERT INTO product_categories (name, display_name, parent_id, level) VALUES
+('gas', 'Gas', (SELECT id FROM parent), 2),
+('electric', 'Electric', (SELECT id FROM parent), 2),
+('induction', 'Induction', (SELECT id FROM parent), 2)
+ON CONFLICT (name, parent_id) DO NOTHING;
+
+-- Add subcategories for hoods
+WITH parent AS (SELECT id FROM product_categories WHERE name = 'hoods' AND parent_id IS NULL LIMIT 1)
+INSERT INTO product_categories (name, display_name, parent_id, level) VALUES
+('under_cabinet', 'Under Cabinet', (SELECT id FROM parent), 2),
+('wall_mounted', 'Wall Mounted', (SELECT id FROM parent), 2),
+('insert', 'Insert', (SELECT id FROM parent), 2),
+('island', 'Island', (SELECT id FROM parent), 2),
+('downdraft', 'Downdraft', (SELECT id FROM parent), 2)
+ON CONFLICT (name, parent_id) DO NOTHING;
+
+-- Create indices for any new categories
+CREATE INDEX IF NOT EXISTS idx_products_make ON products(make);
+CREATE INDEX IF NOT EXISTS idx_products_model_number ON products(model_number);
 `;
 
 export async function initializeDatabase() {
@@ -564,33 +661,71 @@ export async function createOrUpdateProduct(
   price: number | null,
   url: string,
   metadata: any = {},
-  validityPeriodDays: number = 7
+  validityPeriodDays: number = 7,
+  imageUrl?: string,
+  make?: string | null,
+  modelNumber?: string | null,
+  features?: string[]
 ) {
   try {
-    const nextUpdate = new Date();
-    nextUpdate.setDate(nextUpdate.getDate() + validityPeriodDays);
+    const nextUpdateAt = new Date();
+    nextUpdateAt.setDate(nextUpdateAt.getDate() + validityPeriodDays);
     
-    const { data, error } = await supabase
+    // Check if product exists by URL
+    const { data: existingProduct } = await supabase
       .from('products')
-      .upsert({
-        product_name: productName,
-        retailer: retailer,
-        price: price,
-        url: url,
-        metadata: metadata,
-        last_updated: new Date().toISOString(),
-        next_update_at: nextUpdate.toISOString(),
-        // Reset priority after update
-        update_priority: 0
-      }, { 
-        onConflict: 'url',
-        ignoreDuplicates: false
-      })
       .select('id')
+      .eq('url', url)
       .single();
-      
-    if (error) throw error;
-    return data?.id;
+    
+    // Prepare the features as JSONB
+    const featuresJsonb = features ? JSON.stringify(features) : null;
+    
+    if (existingProduct) {
+      // Update existing product
+      const { data, error } = await supabase
+        .from('products')
+        .update({
+          product_name: productName,
+          retailer: retailer,
+          price: price,
+          image_url: imageUrl,
+          metadata: metadata,
+          last_updated: new Date().toISOString(),
+          next_update_at: nextUpdateAt.toISOString(),
+          make: make || null,
+          model_number: modelNumber || null,
+          features: featuresJsonb
+        })
+        .eq('id', existingProduct.id)
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    } else {
+      // Create new product
+      const { data, error } = await supabase
+        .from('products')
+        .insert({
+          product_name: productName,
+          retailer: retailer,
+          price: price,
+          url: url,
+          image_url: imageUrl,
+          metadata: metadata,
+          last_updated: new Date().toISOString(),
+          next_update_at: nextUpdateAt.toISOString(),
+          make: make || null,
+          model_number: modelNumber || null,
+          features: featuresJsonb
+        })
+        .select()
+        .single();
+        
+      if (error) throw error;
+      return data;
+    }
   } catch (error) {
     console.error('Error creating/updating product:', error);
     throw error;
@@ -872,4 +1007,111 @@ export async function getCategoriesForProduct(productId: string) {
 // Update product category (backward compatibility - sets primary category)
 export async function updateProductCategory(productId: string, categoryId: string) {
   return addProductToCategory(productId, categoryId, true);
+}
+
+// Add a new function to find products by make and model
+export async function findProductByMakeModel(make: string, modelNumber: string) {
+  try {
+    // Try to find an exact match first
+    let { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('make', make)
+      .eq('model_number', modelNumber)
+      .limit(1)
+      .single();
+    
+    if (!data && !error) {
+      // If no exact match, try a more flexible search
+      // This uses ILIKE for case-insensitive pattern matching
+      ({ data, error } = await supabase
+        .from('products')
+        .select('*')
+        .ilike('make', `%${make}%`)
+        .ilike('model_number', `%${modelNumber}%`)
+        .limit(1)
+        .single());
+    }
+    
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "Not found" which is acceptable
+    return data || null;
+  } catch (error) {
+    console.error('Error finding product by make/model:', error);
+    return null;
+  }
+}
+
+// Add this new function after initializeSchemaUpdates()
+export async function updateProductCategories() {
+  try {
+    // Execute category update SQL using Supabase's rpc call
+    const { error } = await supabase.rpc('exec_sql', { sql_query: CATEGORY_UPDATE_SQL });
+    
+    if (error) throw error;
+    console.log('Product categories updated successfully');
+  } catch (error) {
+    console.error('Error updating product categories:', error);
+    throw error;
+  }
+}
+
+/**
+ * Creates a new category in the database
+ * @param name - The internal name of the category (slug format)
+ * @param displayName - The display name of the category
+ * @param parentId - Optional parent category ID for subcategories
+ * @returns The new category ID if successful, null if failed
+ */
+export async function createCategory(
+  name: string,
+  displayName: string,
+  parentId: string | null = null
+): Promise<string | null> {
+  try {
+    const level = parentId ? 2 : 1; // Level 1 for main categories, 2 for subcategories
+    
+    const { data, error } = await supabase
+      .from('product_categories')
+      .insert({
+        name: name.toLowerCase().trim().replace(/\s+/g, '_'),
+        display_name: displayName.trim(),
+        parent_id: parentId,
+        level
+      })
+      .select('id')
+      .single();
+      
+    if (error) throw error;
+    
+    console.log(`Created new category: ${displayName} (${name}) ${parentId ? 'under parent ' + parentId : 'as main category'}`);
+    return data?.id || null;
+  } catch (error) {
+    console.error('Error creating category:', error);
+    return null;
+  }
+}
+
+/**
+ * Gets or creates a category by name
+ * @param name - The internal name of the category
+ * @param displayName - The display name of the category
+ * @param parentId - Optional parent category ID for subcategories
+ * @returns The category ID if found or created, null if failed
+ */
+export async function getOrCreateCategoryByName(
+  name: string,
+  displayName: string,
+  parentId: string | null = null
+): Promise<string | null> {
+  try {
+    // First try to get the existing category
+    const existingId = await getCategoryIdByNameAndParent(name, parentId);
+    if (existingId) return existingId;
+    
+    // If not found, create a new one
+    return createCategory(name, displayName, parentId);
+  } catch (error) {
+    console.error('Error getting or creating category:', error);
+    return null;
+  }
 } 

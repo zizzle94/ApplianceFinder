@@ -1,6 +1,8 @@
 -- Drop tables if they exist (for development only)
 DROP TABLE IF EXISTS feedback;
 DROP TABLE IF EXISTS queries;
+DROP TABLE IF EXISTS saved_appliances;
+DROP TABLE IF EXISTS homespy_lookups;
 DROP TABLE IF EXISTS users;
 
 -- Create users table

@@ -4,6 +4,27 @@ import { createOrUpdateProduct, getProductByUrl } from '../../lib/db';
 import { getSession } from '../../lib/api/session';
 import { detectProductCategories, applyCategoriesToProduct } from '../../lib/api/category-detection';
 
+// Helper function to parse interval strings like "6 hours" to milliseconds
+function parseIntervalToMs(interval: string): number {
+  const parts = interval.match(/^(\d+)\s+(\w+)$/);
+  if (!parts) return 6 * 3600000; // Default to 6 hours
+  
+  const value = parseInt(parts[1], 10);
+  const unit = parts[2].toLowerCase();
+  
+  switch (unit) {
+    case 'minute':
+    case 'minutes': return value * 60000;
+    case 'hour':
+    case 'hours': return value * 3600000;
+    case 'day':
+    case 'days': return value * 86400000;
+    case 'week':
+    case 'weeks': return value * 604800000;
+    default: return 6 * 3600000; // Default to 6 hours
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     console.log('Product API request received');
@@ -19,6 +40,7 @@ export async function POST(request: NextRequest) {
     
     // Get Claude's applianceType if available
     const claudeApplianceType = claudeData?.applianceType || null;
+    console.log(`Processing product with Claude applianceType: ${claudeApplianceType || 'none'}`);
     
     // Validate URL
     if (!url || typeof url !== 'string') {
@@ -66,10 +88,13 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
     
-    // Enhance metadata with Claude's applianceType if available
+    // Enhance metadata with Claude's data if available
     const enhancedMetadata = {
       ...productData,
-      claude_appliance_type: claudeApplianceType
+      claude_appliance_type: claudeApplianceType,
+      claude_features: claudeData?.features || [],
+      claude_brands: claudeData?.brands || [],
+      price_range: claudeData?.priceRange || {}
     };
     
     // Save to database
@@ -83,8 +108,8 @@ export async function POST(request: NextRequest) {
       6 // Default validity period of 6 hours
     );
     
-    // Detect and apply product categories
-    console.log('Detecting product categories...');
+    // Detect and apply product categories - now with dynamic category creation
+    console.log('Detecting product categories with dynamic creation...');
     const detectedCategories = await detectProductCategories(
       productData, 
       url, 
@@ -93,14 +118,14 @@ export async function POST(request: NextRequest) {
     
     // Apply the detected categories to the product
     if (detectedCategories.length > 0) {
-      console.log(`Applying ${detectedCategories.length} detected categories to product ${productId}`);
+      console.log(`Applying ${detectedCategories.length} detected/created categories to product ${productId}`);
       await applyCategoriesToProduct(productId, detectedCategories);
     } else {
       console.log('No categories detected for this product');
     }
     
     return NextResponse.json({
-      message: 'Product data retrieved and saved',
+      message: 'Product data retrieved and saved with dynamic categorization',
       product: {
         id: productId,
         product_name: productData.name,
@@ -149,37 +174,5 @@ export async function GET(request: NextRequest) {
       error: 'Server error retrieving product data',
       details: error instanceof Error ? error.message : String(error)
     }, { status: 500 });
-  }
-}
-
-// Helper function to parse interval string (e.g. '6 hours') to milliseconds
-function parseIntervalToMs(interval: string): number {
-  const match = interval.match(/(\d+)\s+(\w+)/);
-  if (!match) return 6 * 3600000; // Default to 6 hours
-  
-  const value = parseInt(match[1], 10);
-  const unit = match[2].toLowerCase();
-  
-  switch (unit) {
-    case 'second':
-    case 'seconds':
-      return value * 1000;
-    case 'minute':
-    case 'minutes':
-      return value * 60000;
-    case 'hour':
-    case 'hours':
-      return value * 3600000;
-    case 'day':
-    case 'days':
-      return value * 86400000;
-    case 'week':
-    case 'weeks':
-      return value * 604800000;
-    case 'month':
-    case 'months':
-      return value * 2592000000; // 30 days
-    default:
-      return 6 * 3600000; // Default to 6 hours
   }
 } 

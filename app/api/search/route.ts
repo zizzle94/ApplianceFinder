@@ -349,7 +349,7 @@ export async function POST(request: NextRequest) {
         // For each product that was found, store it in the cache for future use
         for (const product of products) {
           try {
-            // Save to the product cache asynchronously
+            // Save to the product cache asynchronously with validated category detection
             fetch('/api/products', {
               method: 'POST',
               headers: {
